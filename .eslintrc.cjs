@@ -38,7 +38,6 @@ module.exports = {
         },
     ],
     rules: {
-
         // Plugin Rules
         "@typescript-eslint/brace-style": ["error", "1tbs", { allowSingleLine: true }],
         "@typescript-eslint/consistent-type-definitions": ["warn", "interface"],
