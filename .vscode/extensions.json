@@ -1,0 +1,13 @@
+{
+    "recommendations": [
+        "streetsidesoftware.code-spell-checker",
+        "vivaxy.vscode-conventional-commits",
+        "ms-azuretools.vscode-docker",
+        "editorconfig.editorconfig",
+        "dbaeumer.vscode-eslint",
+        "sleistner.vscode-fileutils",
+        "mhutchie.git-graph",
+        "svelte.svelte-vscode",
+        "britesnow.vscode-toggle-quotes"
+    ]
+}
