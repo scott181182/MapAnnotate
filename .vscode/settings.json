@@ -1,5 +1,16 @@
 {
     "editor.codeActionsOnSave": {
         "source.fixAll.eslint": true
-    }
+    },
+    "conventionalCommits.gitmoji": false,
+    "conventionalCommits.promptFooter": false,
+    "conventionalCommits.scopes": [
+        "client",
+        "server",
+        "scripts",
+        "docker",
+        "cicd",
+        "vscode",
+        "docs"
+    ]
 }
