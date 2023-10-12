@@ -14,6 +14,9 @@
         "docs"
     ],
     "cSpell.words": [
-        "tailwindcss"
+        "CARTO",
+        "latlng",
+        "tailwindcss",
+        "zoomend"
     ]
 }
