@@ -1,4 +1,8 @@
 {
+    "eslint.validate": [
+        "typescript",
+        "svelte"
+    ],
     "editor.codeActionsOnSave": {
         "source.fixAll.eslint": true
     },

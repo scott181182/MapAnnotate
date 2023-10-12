@@ -1,10 +1,13 @@
 <script lang="ts">
-import L, { Map as LeafletMap, type LatLngLiteral, type LatLngExpression } from 'leaflet';
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import _ from "lodash";
+import { getContext } from "svelte";
 import { v4 as uuid4 } from "uuid";
 
-import { BlueCrossPointIconMap, RedCrossPointIconMap, layerGroup2array } from '$lib/map';
+import { download } from "$lib/download";
+import { BlueCrossPointIconMap, RedCrossPointIconMap, layerGroup2array } from "$lib/map";
+import type { OnSaveContext } from "$lib/save";
 
 
 
@@ -23,8 +26,8 @@ interface Selectable {
 
 class MapMarker extends L.Marker implements Selectable {
     public constructor(
-        latlng: LatLngExpression,
-        public readonly node: MapNodeData
+        latlng: L.LatLngExpression,
+        public readonly node: MapNodeData,
     ) {
         super(latlng);
     }
@@ -32,12 +35,12 @@ class MapMarker extends L.Marker implements Selectable {
     public select() {
         if(currentSelection) { currentSelection.data.deselect(); }
         const zoom = this._map.getZoom() ?? 1;
-        this.setIcon(RedCrossPointIconMap.get(zoom))
+        this.setIcon(RedCrossPointIconMap.get(zoom));
         currentSelection = { type: "node", data: this };
     }
     public deselect() {
         const zoom = this._map.getZoom() ?? 1;
-        this.setIcon(BlueCrossPointIconMap.get(zoom))
+        this.setIcon(BlueCrossPointIconMap.get(zoom));
         currentSelection = null;
     }
 }
@@ -53,11 +56,11 @@ class MapLine extends L.Polyline implements Selectable {
     ) {
         super([ from.getLatLng(), to.getLatLng() ], {
             color: MapLine.DEFAULT_COLOR,
-            bubblingMouseEvents: false
+            bubblingMouseEvents: false,
         });
         this.edge = {
             fromNodeId: from.node.id,
-            toNodeId: to.node.id
+            toNodeId: to.node.id,
         };
     }
 
@@ -74,19 +77,19 @@ class MapLine extends L.Polyline implements Selectable {
 
 
 
-let map: LeafletMap | null;
+let map: L.Map | null;
 const initialView: [number, number] = [39.1319066,-84.5148446];
 
 const nodeLayer = L.layerGroup();
 const edgeLayer = L.layerGroup();
 
-type CurrentSelection = { type: "node", data: MapMarker } | { type: "edge", data: MapLine };
+type CurrentSelection = { type: "node"; data: MapMarker } | { type: "edge"; data: MapLine };
 let currentSelection: CurrentSelection | null = null;
 
 
 
 function addNodeMarker(latlng: L.LatLngExpression) {
-    const mark = new MapMarker(latlng, { id: uuid4() })
+    const mark = new MapMarker(latlng, { id: uuid4() });
     mark.setIcon(RedCrossPointIconMap.get(map?.getZoom() ?? 1));
     mark.on("click", (ev) => {
         if(ev.originalEvent.shiftKey && currentSelection?.type === "node") {
@@ -96,16 +99,15 @@ function addNodeMarker(latlng: L.LatLngExpression) {
     });
     nodeLayer.addLayer(mark);
     mark.select();
+
     return mark;
 }
 function addNodeEdge(from: MapMarker, to: MapMarker) {
-    console.log("New Edge!");
     const line = new MapLine(from, to);
     line.on("click", () => {
         line.select();
     });
     edgeLayer.addLayer(line);
-    console.log(edgeLayer);
 }
 function deleteSelected() {
     if(!currentSelection) { return; }
@@ -113,7 +115,10 @@ function deleteSelected() {
         edgeLayer.removeLayer(currentSelection.data);
     } else {
         const marker = currentSelection.data;
-        const edgesToRemove = layerGroup2array<MapLine>(edgeLayer, (ml) => ml.edge.fromNodeId === marker.node.id || ml.edge.toNodeId === marker.node.id);
+        const edgesToRemove = layerGroup2array<MapLine>(
+            edgeLayer,
+            (ml) => ml.edge.fromNodeId === marker.node.id || ml.edge.toNodeId === marker.node.id,
+        );
         for(const ml of edgesToRemove) {
             edgeLayer.removeLayer(ml);
         }
@@ -126,15 +131,15 @@ function deleteSelected() {
 
 
 function createMap(container: HTMLElement) {
-    let m = L.map(container, {preferCanvas: true }).setView(initialView, 16);
+    let m = L.map(container, { preferCanvas: true }).setView(initialView, 16);
     L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         {
             attribution: `&copy;<a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>,
             &copy;<a href="https://carto.com/attributions" target="_blank">CARTO</a>`,
-            subdomains: 'abcd',
+            subdomains: "abcd",
             maxZoom: 19,
-        }
+        },
     ).addTo(m);
 
     edgeLayer.addTo(m);
@@ -144,12 +149,12 @@ function createMap(container: HTMLElement) {
         nodeLayer.eachLayer((l) => {
             const mark = l as MapMarker;
             if(currentSelection?.data === mark) {
-                mark.setIcon(RedCrossPointIconMap.get(m.getZoom()))
+                mark.setIcon(RedCrossPointIconMap.get(m.getZoom()));
             } else {
-                mark.setIcon(BlueCrossPointIconMap.get(m.getZoom()))
+                mark.setIcon(BlueCrossPointIconMap.get(m.getZoom()));
             }
         });
-    })
+    });
 
     m.on("click", (ev) => {
         const previousMark = currentSelection;
@@ -158,6 +163,7 @@ function createMap(container: HTMLElement) {
             addNodeEdge(previousMark.data, newMark);
         }
     });
+
     return m;
 }
 
@@ -170,13 +176,37 @@ function mapAction(container: HTMLElement) {
         destroy: () => {
             map?.remove();
             map = null;
-        }
+        },
     };
 }
 
 function resizeMap() {
     if(map) { map.invalidateSize(); }
 }
+
+
+
+function exportGraph() {
+    const markers = layerGroup2array<MapMarker>(nodeLayer);
+    const edges = layerGroup2array<MapLine>(edgeLayer);
+
+    const obj = {
+        nodes: markers.map((m) => ({
+            ...m.node,
+            latlng: m.getLatLng(),
+        })),
+        edges: edges.map((e) => ({
+            ...e.edge,
+        })),
+    };
+
+    console.log("Downloading graph!");
+
+    download(JSON.stringify(obj, null, 4), "mapData.json", "application/json");
+}
+
+const { setOnSave } = getContext<OnSaveContext>("navbar-save");
+setOnSave(exportGraph);
 
 
 
@@ -189,7 +219,7 @@ $: asideTitle = currentSelection ? _.startCase(currentSelection.type) : "no sele
 
 <div class="container-fluid h-full">
     <div class="row h-full">
-        <aside class="col-3 pt-4">
+        <aside class="col-3 pt-4 border-r-2 border-solid border-black">
             <div class="flex justify-between">
                 <h1 class="text-2xl">{asideTitle}</h1>
                 <button
@@ -202,7 +232,7 @@ $: asideTitle = currentSelection ? _.startCase(currentSelection.type) : "no sele
                 </button>
             </div>
         </aside>
-        <section class="col-9">
+        <section class="col-9 p-0">
             <div id="map" class="w-full h-full flex flex-col content-around" use:mapAction></div>
         </section>
     </div>
