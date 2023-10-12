@@ -12,5 +12,8 @@
         "cicd",
         "vscode",
         "docs"
+    ],
+    "cSpell.words": [
+        "tailwindcss"
     ]
 }
