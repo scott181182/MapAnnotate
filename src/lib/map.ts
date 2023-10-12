@@ -1,4 +1,5 @@
 /* eslint-disable import/no-named-as-default-member */
+import type { Layer, LayerGroup } from "leaflet";
 import L from "leaflet";
 
 
@@ -54,3 +55,22 @@ export const RedCrossPointIconMap = new MemoMap<number, L.Icon>(
     (zoom) => zoom.toString(),
     (zoom) => createSizedIcon(zoom, "crosspoint-red.png"),
 );
+
+
+
+export function layerGroup2array<T extends Layer = Layer>(
+    layerGroup: LayerGroup,
+    filterFn?: (layer: T) => boolean,
+): T[] {
+    const layers: T[] = [];
+
+    layerGroup.eachLayer((l) => {
+        if(filterFn && !filterFn(l as T)) {
+            return;
+        }
+
+        layers.push(l as T);
+    });
+
+    return layers;
+}

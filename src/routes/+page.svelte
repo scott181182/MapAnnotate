@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import _ from "lodash";
 import { v4 as uuid4 } from "uuid";
 
-import { BlueCrossPointIconMap, RedCrossPointIconMap } from '$lib/map';
+import { BlueCrossPointIconMap, RedCrossPointIconMap, layerGroup2array } from '$lib/map';
 
 
 
@@ -107,6 +107,20 @@ function addNodeEdge(from: MapMarker, to: MapMarker) {
     edgeLayer.addLayer(line);
     console.log(edgeLayer);
 }
+function deleteSelected() {
+    if(!currentSelection) { return; }
+    if(currentSelection.type === "edge") {
+        edgeLayer.removeLayer(currentSelection.data);
+    } else {
+        const marker = currentSelection.data;
+        const edgesToRemove = layerGroup2array<MapLine>(edgeLayer, (ml) => ml.edge.fromNodeId === marker.node.id || ml.edge.toNodeId === marker.node.id);
+        for(const ml of edgesToRemove) {
+            edgeLayer.removeLayer(ml);
+        }
+        nodeLayer.removeLayer(marker);
+    }
+    currentSelection = null;
+}
 
 
 
@@ -173,22 +187,23 @@ $: asideTitle = currentSelection ? _.startCase(currentSelection.type) : "no sele
 
 
 
-<style>
-#map {
-    width: 100%;
-    height: 80vh;
-
-    display: flex;
-    flex-direction: column;
-    align-content: space-around;
-}
-</style>
-
-
-
-<aside>
-    <h1>{asideTitle}</h1>
-</aside>
-<section class="container h-100">
-    <div id="map" use:mapAction></div>
-</section>
+<div class="container-fluid h-full">
+    <div class="row h-full">
+        <aside class="col-3 pt-4">
+            <div class="flex justify-between">
+                <h1 class="text-2xl">{asideTitle}</h1>
+                <button
+                    type="button"
+                    class="btn btn-outline-warning"
+                    disabled={currentSelection === null}
+                    on:click={deleteSelected}
+                >
+                    <i class="bi-trash"></i>
+                </button>
+            </div>
+        </aside>
+        <section class="col-9">
+            <div id="map" class="w-full h-full flex flex-col content-around" use:mapAction></div>
+        </section>
+    </div>
+</div>
