@@ -6,74 +6,15 @@ import { getContext } from "svelte";
 import { v4 as uuid4 } from "uuid";
 
 import { download } from "$lib/download";
-import { BlueCrossPointIconMap, RedCrossPointIconMap, layerGroup2array } from "$lib/map";
+import { MapActionStack } from "$lib/map/actions";
+import { BlueCrossPointIconMap, RedCrossPointIconMap } from "$lib/map/icons";
+import type { MapSelection } from "$lib/map/layers";
+import { MapLine, MapMarker } from "$lib/map/layers";
+import { layerGroup2array } from "$lib/map/utils";
 import type { OnSaveContext } from "$lib/save";
 
 
 
-interface MapNodeData {
-    id: string;
-}
-interface MapEdgeData {
-    fromNodeId: string;
-    toNodeId: string;
-}
-
-interface Selectable {
-    select(): void;
-    deselect(): void;
-}
-
-class MapMarker extends L.Marker implements Selectable {
-    public constructor(
-        latlng: L.LatLngExpression,
-        public readonly node: MapNodeData,
-    ) {
-        super(latlng);
-    }
-
-    public select() {
-        if(currentSelection) { currentSelection.data.deselect(); }
-        const zoom = this._map.getZoom() ?? 1;
-        this.setIcon(RedCrossPointIconMap.get(zoom));
-        currentSelection = { type: "node", data: this };
-    }
-    public deselect() {
-        const zoom = this._map.getZoom() ?? 1;
-        this.setIcon(BlueCrossPointIconMap.get(zoom));
-        currentSelection = null;
-    }
-}
-class MapLine extends L.Polyline implements Selectable {
-    public static readonly DEFAULT_COLOR = "#3a8ece";
-    public static readonly ACTIVE_COLOR = "#f00";
-
-    public readonly edge: MapEdgeData;
-
-    public constructor(
-        from: MapMarker,
-        to: MapMarker,
-    ) {
-        super([ from.getLatLng(), to.getLatLng() ], {
-            color: MapLine.DEFAULT_COLOR,
-            bubblingMouseEvents: false,
-        });
-        this.edge = {
-            fromNodeId: from.node.id,
-            toNodeId: to.node.id,
-        };
-    }
-
-    public select() {
-        if(currentSelection) { currentSelection.data.deselect(); }
-        this.setStyle({ color: MapLine.ACTIVE_COLOR });
-        currentSelection = { type: "edge", data: this };
-    }
-    public deselect() {
-        this.setStyle({ color: MapLine.DEFAULT_COLOR });
-        currentSelection = null;
-    }
-}
 
 
 
@@ -83,8 +24,8 @@ const initialView: [number, number] = [39.1319066,-84.5148446];
 const nodeLayer = L.layerGroup();
 const edgeLayer = L.layerGroup();
 
-type CurrentSelection = { type: "node"; data: MapMarker } | { type: "edge"; data: MapLine };
-let currentSelection: CurrentSelection | null = null;
+let currentSelection: MapSelection = null;
+const actionStack = new MapActionStack();
 
 
 
@@ -95,38 +36,38 @@ function addNodeMarker(latlng: L.LatLngExpression) {
         if(ev.originalEvent.shiftKey && currentSelection?.type === "node") {
             addNodeEdge(currentSelection.data, mark);
         }
-        mark.select();
+        currentSelection = mark.select(currentSelection);
     });
     nodeLayer.addLayer(mark);
-    mark.select();
+    currentSelection = mark.select(currentSelection);
+
+    actionStack.push("createNode", mark);
 
     return mark;
 }
 function addNodeEdge(from: MapMarker, to: MapMarker) {
     const line = new MapLine(from, to);
     line.on("click", () => {
-        line.select();
+        currentSelection = line.select(currentSelection);
     });
     edgeLayer.addLayer(line);
+
+    actionStack.push("createEdge", line);
 }
 function deleteSelected() {
     if(!currentSelection) { return; }
+
     if(currentSelection.type === "edge") {
-        edgeLayer.removeLayer(currentSelection.data);
+        actionStack.push("deleteEdge", currentSelection.data);
     } else {
-        const marker = currentSelection.data;
-        const edgesToRemove = layerGroup2array<MapLine>(
-            edgeLayer,
-            (ml) => ml.edge.fromNodeId === marker.node.id || ml.edge.toNodeId === marker.node.id,
-        );
-        for(const ml of edgesToRemove) {
-            edgeLayer.removeLayer(ml);
-        }
-        nodeLayer.removeLayer(marker);
+        actionStack.push("deleteNode", currentSelection.data);
     }
-    currentSelection = null;
+    currentSelection = currentSelection.data.delete(nodeLayer, edgeLayer);
 }
 
+function onUndo() {
+    currentSelection = actionStack.undo(nodeLayer, edgeLayer, currentSelection);
+}
 
 
 
@@ -219,8 +160,8 @@ $: asideTitle = currentSelection ? _.startCase(currentSelection.type) : "no sele
 
 <div class="container-fluid h-full">
     <div class="row h-full">
-        <aside class="col-3 pt-4 border-r-2 border-solid border-black">
-            <div class="flex justify-between">
+        <aside class="col-3 pt-4 px-0 border-end border-dark border-2 flex flex-col">
+            <div class="flex justify-between px-4">
                 <h1 class="text-2xl">{asideTitle}</h1>
                 <button
                     type="button"
@@ -231,6 +172,17 @@ $: asideTitle = currentSelection ? _.startCase(currentSelection.type) : "no sele
                     <i class="bi-trash"></i>
                 </button>
             </div>
+            <div class="flex-grow">
+
+            </div>
+            <footer class="border-top border-dark border-2 p-2 flex justify-between">
+                <h1 class="text-xl">Map Tools</h1>
+                <div>
+                    <button type="button" class="btn btn-secondary" on:click={onUndo}>
+                        <i class="bi-arrow-counterclockwise"></i>
+                    </button>
+                </div>
+            </footer>
         </aside>
         <section class="col-9 p-0">
             <div id="map" class="w-full h-full flex flex-col content-around" use:mapAction></div>
