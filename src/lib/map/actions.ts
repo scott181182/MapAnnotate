@@ -1,54 +1,81 @@
+import type { Writable } from "svelte/store";
+
+import type { AnnotatedMap } from "./AnnotatedMap";
 import type { MapLine, MapMarker, MapSelection } from "./layers";
 
 
 
 export type MapActionType = "createNode" | "createEdge" | "deleteNode" | "deleteEdge";
-interface MapActionPayloadMap {
-    createNode: MapMarker;
-    createEdge: MapLine;
-    deleteNode: MapMarker;
-    deleteEdge: MapLine;
+
+export abstract class MapAction {
+    public abstract execute(map: AnnotatedMap, currentSelection: Writable<MapSelection>): void;
+    public abstract inverse(): MapAction;
 }
 
-type MapAction = {
-    action: "createNode";
-    payload: MapMarker;
-} | {
-    action: "createEdge";
-    payload: MapLine;
-} | {
-    action: "deleteNode";
-    payload: MapMarker;
-} | {
-    action: "deleteEdge";
-    payload: MapLine;
-}
+export class CreateNodeWithEdgesAction extends MapAction {
+    public constructor(
+        private readonly node: MapMarker,
+        private readonly edges: MapLine[],
+    ) { super(); }
 
-export class MapActionStack {
-    private undoStack: MapAction[] = [];
-
-
-    public push<A extends MapActionType>(action: A, payload: MapActionPayloadMap[A]) {
-        this.undoStack.push({ action, payload } as MapAction);
+    public execute(map: AnnotatedMap, currentSelection: Writable<MapSelection>): void {
+        this.edges.forEach((e) => map.addEdgeToMap(e));
+        map.addNodeToMap(this.node);
+        currentSelection.update((cs) => this.node.select(cs));
     }
-    public undo(nodeLayer: L.LayerGroup, edgeLayer: L.LayerGroup, currentSelection: MapSelection): MapSelection {
-        const lastAction = this.undoStack.pop();
-        if(!lastAction) { return currentSelection; }
+    public inverse(): MapAction {
+        return new DeleteNodeWithEdgesAction(this.node, this.edges);
+    }
+}
+export class DeleteNodeWithEdgesAction extends MapAction {
+    public constructor(
+        private readonly node: MapMarker,
+        private readonly edges: MapLine[],
+    ) { super(); }
 
-        switch(lastAction.action) {
-            case "createNode":
-                return lastAction.payload.delete(nodeLayer, edgeLayer);
-            case "createEdge":
-                return lastAction.payload.delete(nodeLayer, edgeLayer);
-            case "deleteNode":
-                nodeLayer.addLayer(lastAction.payload);
+    public execute(map: AnnotatedMap, currentSelection: Writable<MapSelection>): void {
+        currentSelection.update((cs) => {
+            return cs?.data === this.node ?
+                this.node.deselect() :
+                cs;
+        });
 
-                // TODO: re-add any deleted edges
-                return lastAction.payload.select(currentSelection);
-            case "deleteEdge":
-                edgeLayer.addLayer(lastAction.payload);
+        this.edges.forEach((e) => map.removeEdgeFromMap(e));
+        map.removeNodeFromMap(this.node);
+    }
+    public inverse(): MapAction {
+        return new CreateNodeWithEdgesAction(this.node, this.edges);
+    }
+}
 
-                return lastAction.payload.select(currentSelection);
-        }
+export class CreateEdgeAction extends MapAction {
+    public constructor(
+        private readonly edge: MapLine,
+    ) { super(); }
+
+    public execute(map: AnnotatedMap, currentSelection: Writable<MapSelection>): void {
+        map.addEdgeToMap(this.edge);
+        currentSelection.update((cs) => this.edge.select(cs));
+    }
+    public inverse(): MapAction {
+        return new DeleteEdgeAction(this.edge);
+    }
+}
+export class DeleteEdgeAction extends MapAction {
+    public constructor(
+        private readonly edge: MapLine,
+    ) { super(); }
+
+    public execute(map: AnnotatedMap, currentSelection: Writable<MapSelection>): void {
+        map.removeEdgeFromMap(this.edge);
+
+        currentSelection.update((cs) => {
+            return cs?.data === this.edge ?
+                this.edge.deselect() :
+                cs;
+        });
+    }
+    public inverse(): MapAction {
+        return new CreateEdgeAction(this.edge);
     }
 }
