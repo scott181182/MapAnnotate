@@ -1,7 +1,6 @@
 import L from "leaflet";
 
 import { BlueCrossPointIconMap, RedCrossPointIconMap } from "./icons";
-import { layerGroup2array } from "./utils";
 
 
 
@@ -16,39 +15,51 @@ export interface MapEdgeData {
 export interface Selectable {
     select(currentSelection: MapSelection): MapSelection;
     deselect(): null;
-    delete(nodeLayers: L.LayerGroup, edgeLayers: L.LayerGroup): null;
+
+    isSelected(): boolean;
 }
 
 export class MapMarker extends L.Marker implements Selectable {
+    private selected = false;
+
     public constructor(
         latlng: L.LatLngExpression,
         public readonly node: MapNodeData,
     ) {
         super(latlng);
+
+        this.on("add", () => {
+            this.setIcon(BlueCrossPointIconMap.get(this._map?.getZoom() ?? 1));
+        });
     }
+
+    public updateZoom(zoom: number) {
+        if(this.selected) {
+            this.setIcon(RedCrossPointIconMap.get(zoom));
+        } else {
+            this.setIcon(BlueCrossPointIconMap.get(zoom));
+        }
+    }
+
+    public isSelected(): boolean { return this.selected; }
 
     public select(currentSelection: MapSelection) {
         if(currentSelection) { currentSelection.data.deselect(); }
         const zoom = this._map.getZoom() ?? 1;
         this.setIcon(RedCrossPointIconMap.get(zoom));
 
+        this.selected = true;
+
         return { type: "node", data: this } as const;
     }
     public deselect() {
-        const zoom = this._map.getZoom() ?? 1;
-        this.setIcon(BlueCrossPointIconMap.get(zoom));
-
-        return null;
-    }
-    public delete(nodeLayer: L.LayerGroup, edgeLayer: L.LayerGroup) {
-        const edgesToRemove = layerGroup2array<MapLine>(
-            edgeLayer,
-            (ml) => ml.edge.fromNodeId === this.node.id || ml.edge.toNodeId === this.node.id,
-        );
-        for(const ml of edgesToRemove) {
-            edgeLayer.removeLayer(ml);
+        if(this._map) {
+            // `this._map` could be undefined if this was just removed.
+            const zoom = this._map.getZoom() ?? 1;
+            this.setIcon(BlueCrossPointIconMap.get(zoom));
         }
-        nodeLayer.removeLayer(this);
+
+        this.selected = false;
 
         return null;
     }
@@ -58,6 +69,7 @@ export class MapLine extends L.Polyline implements Selectable {
     public static readonly ACTIVE_COLOR = "#f00";
 
     public readonly edge: MapEdgeData;
+    private selected = false;
 
     public constructor(
         from: MapMarker,
@@ -73,19 +85,20 @@ export class MapLine extends L.Polyline implements Selectable {
         };
     }
 
+    public isSelected(): boolean { return this.selected; }
+
     public select(currentSelection: MapSelection) {
         if(currentSelection) { currentSelection.data.deselect(); }
         this.setStyle({ color: MapLine.ACTIVE_COLOR });
+
+        this.selected = true;
 
         return { type: "edge", data: this } as const;
     }
     public deselect() {
         this.setStyle({ color: MapLine.DEFAULT_COLOR });
 
-        return null;
-    }
-    public delete(_nodeLayer: L.LayerGroup, edgeLayer: L.LayerGroup) {
-        edgeLayer.removeLayer(this);
+        this.selected = false;
 
         return null;
     }
