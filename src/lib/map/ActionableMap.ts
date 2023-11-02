@@ -1,7 +1,8 @@
 import type L from "leaflet";
 import type { Writable } from "svelte/store";
-import { get  } from "svelte/store";
+import { get } from "svelte/store";
 
+import { ReactiveStack } from "$lib/array";
 import type { MapAction } from "./actions";
 import { CreateEdgeAction, CreateNodeWithEdgesAction, DeleteEdgeAction, DeleteNodeWithEdgesAction  } from "./actions";
 import { AnnotatedMap } from "./AnnotatedMap";
@@ -12,15 +13,13 @@ import type { MapLine, MapMarker, MapSelection } from "./layers";
 export class ActionableMap {
     private map = new AnnotatedMap();
     /** Actions that have been performed that can be undone. */
-    private undoStack: MapAction[] = [];
+    private readonly undoStack = new ReactiveStack<MapAction>();
     /** Actions that have been undone that can be redone. */
-    private redoStack: MapAction[] = [];
+    private readonly redoStack = new ReactiveStack<MapAction>();
 
     public constructor(
         private currentSelection: Writable<MapSelection>,
-    ) {
-
-    }
+    ) {  }
 
     private createClickableNode(latlng: L.LatLngExpression) {
         const node = this.map.createNode(latlng);
@@ -34,7 +33,6 @@ export class ActionableMap {
 
         return node;
     }
-
     private createClickableEdge(from: MapMarker, to: MapMarker) {
         const edge = this.map.createEdge(from, to);
         edge.on("click", () => {
@@ -44,12 +42,13 @@ export class ActionableMap {
         return edge;
     }
 
-
     private performAction(action: MapAction) {
         action.execute(this.map, this.currentSelection);
         this.undoStack.push(action);
-        this.redoStack = [];
+        this.redoStack.clear();
     }
+
+
 
     public addNode(latlng: L.LatLngExpression) {
         const node = this.createClickableNode(latlng);
@@ -86,6 +85,9 @@ export class ActionableMap {
     }
 
 
+
+    public get undoLength() { return this.undoStack.length; }
+    public get redoLength() { return this.redoStack.length; }
 
     public undo() {
         const lastAction = this.undoStack.pop();
