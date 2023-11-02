@@ -112,10 +112,17 @@ export class ActionableMap {
         this.map.mount(container);
         this.map.getMap()?.on("click", (ev) => {
             const cs = get(this.currentSelection);
+            const caps = ev.originalEvent.getModifierState("CapsLock");
+
             if(ev.originalEvent.shiftKey && cs?.type === "node") {
+                // On Shift+click and currently selecting a node, create new node connected to current node.
                 this.addNodeWithEdge(ev.latlng, cs.data);
-            } else {
+            } else if(ev.originalEvent.ctrlKey || caps) {
+                // On Ctrl+click or CapsLock+click, create new node.
                 this.addNode(ev.latlng);
+            } else {
+                // Vanilla click on map, remove current selection.
+                this.currentSelection.set(cs?.data.deselect() ?? null);
             }
         });
     }
