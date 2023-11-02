@@ -61,7 +61,7 @@ module.exports = {
         "import/first": ["error"],
         "import/newline-after-import": ["warn", { count: 3 }],
         "import/no-absolute-path": ["error"],
-        "import/no-mutable-exports": ["error"],
+        "import/no-mutable-exports": ["off"],
         "import/no-named-as-default-member": ["off"],
         // "import/no-relative-parent-imports": ["error"],
         "import/no-useless-path-segments": ["error"],
