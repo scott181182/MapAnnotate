@@ -16,6 +16,8 @@ function onDelete() {
 export let selection: MapSelection;
 
 $: asideTitle = selection ? _.startCase(selection.type) : "no selection";
+$: meta = selection && (selection.type === "node" ? selection.data.node.meta : selection.data.edge.meta);
+$: metaEntries = meta ? Object.entries(meta) : [];
 </script>
 
 
@@ -36,21 +38,32 @@ $: asideTitle = selection ? _.startCase(selection.type) : "no selection";
     <div>
         <dl>
             {#if selection.type === "node"}
-
             <dt>ID</dt>
             <dd>{selection.data.node.id}</dd>
             <dt>Location</dt>
             <dd>{formatLatLng(selection.data.getLatLng())}</dd>
-
             {:else}
-
             <dt>From</dt>
             <dd>{selection.data.edge.fromNodeId}</dd>
             <dt>To</dt>
             <dd>{selection.data.edge.toNodeId}</dd>
-
             {/if}
+
+            {#each metaEntries as [metaKey, metaValue]}
+                <dt>{metaKey}</dt>
+                <dd>{metaValue}</dd>
+            {/each}
         </dl>
+        <div class="form-inline">
+            <div class="form-group">
+                <input class="form-control" placeholder="New Field"/>
+            </div>
+            <div class="form-group">
+                <button type="button" class="btn btn-secondary btn-sm">
+                    <i class="bi-plus"></i>
+                </button>
+            </div>
+        </div>
     </div>
     {/if}
 </section>
