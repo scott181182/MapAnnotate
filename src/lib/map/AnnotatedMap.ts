@@ -33,7 +33,10 @@ export class AnnotatedMap {
 
 
     public createNode(latlng: L.LatLngExpression) {
-        const mark = new MapMarker(latlng, { id: uuid4() });
+        const mark = new MapMarker(latlng, {
+            id: uuid4(),
+            meta: {},
+        });
 
         return mark;
     }

@@ -6,10 +6,12 @@ import { BlueCrossPointIconMap, RedCrossPointIconMap } from "./icons";
 
 export interface MapNodeData {
     id: string;
+    meta: Record<string, string>;
 }
 export interface MapEdgeData {
     fromNodeId: string;
     toNodeId: string;
+    meta: Record<string, string>;
 }
 
 export interface Selectable {
@@ -82,6 +84,7 @@ export class MapLine extends L.Polyline implements Selectable {
         this.edge = {
             fromNodeId: from.node.id,
             toNodeId: to.node.id,
+            meta: {},
         };
     }
 
